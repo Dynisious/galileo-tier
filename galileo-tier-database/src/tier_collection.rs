@@ -23,7 +23,7 @@ pub trait TierListCollection: Sized {
   /// # Params
   /// 
   /// id --- The identifier of the document in the collection.  
-  fn get_document(&self, id: DocumentId,) -> Self::Future;
+  fn get_document(&self, id: &DocumentId,) -> Self::Future;
   /// Writes a document to the collection.
   /// 
   /// # Params
@@ -39,7 +39,7 @@ pub trait TierListCollection: Sized {
   /// 
   /// id --- The identifier of the document in the collection.  
   #[inline]
-  fn get_item<T,>(&self, id: DocumentId,) -> Map<Self::Future, fn(<Self::Future as Future>::Output,) -> Result<T, Self::Error>>
+  fn get_item<T,>(&self, id: &DocumentId,) -> Map<Self::Future, fn(<Self::Future as Future>::Output,) -> Result<T, Self::Error>>
     where Self::Document: TryInto<T>,
       Self::Future: FutureExt,
       Self::Error: From<<Self::Document as TryInto<T>>::Error>, {
@@ -63,7 +63,7 @@ pub trait TierListCollection: Sized {
   /// # Params
   /// 
   /// id --- The identifier of the document in the collection.  
-  fn get_cursor<'a, T,>(&'a self, id: DocumentId,) -> MapOk<Map<Self::Future, fn(<Self::Future as Future>::Output,) -> Result<T, Self::Error>>, Box<dyn 'a + FnOnce(T,) -> Cursor<T, &'a Self,>>>
+  fn get_cursor<'a, T,>(&'a self, id: &DocumentId,) -> MapOk<Map<Self::Future, fn(<Self::Future as Future>::Output,) -> Result<T, Self::Error>>, Box<dyn 'a + FnOnce(T,) -> Cursor<T, &'a Self,>>>
     where Self::Document: TryInto<T>,
       Self::Future: TryFutureExt,
       Self::Error: From<<Self::Document as TryInto<T>>::Error>, {
@@ -80,7 +80,7 @@ impl<'a, Coll,> TierListCollection for &'a Coll
   type WriteFuture = Coll::WriteFuture;
 
   #[inline]
-  fn get_document(&self, id: DocumentId,) -> Self::Future { Coll::get_document(*self, id,) }
+  fn get_document(&self, id: &DocumentId,) -> Self::Future { Coll::get_document(*self, id,) }
   #[inline]
   fn write_document<T,>(&self, document: &T,) -> Self::WriteFuture
     where T: AsRef<Self::Document>, {
@@ -141,7 +141,7 @@ impl<T, Coll,> Cursor<T, Coll,>
       //There is a next node.
       Some(next_id) => Ok(
         //Get the next node.
-        self.collection.get_item(next_id,)
+        self.collection.get_item(&next_id,)
         .map(move |res,| match res {
           Ok(item) => Ok(Self { item, ..self }),
           Err(e) => Err((self, e,))
@@ -165,7 +165,7 @@ impl<T, Coll,> Cursor<T, Coll,>
       //There is a next node.
       Some(previous_id) => Ok(
         //Get the next node.
-        self.collection.get_item(previous_id,)
+        self.collection.get_item(&previous_id,)
         .map(move |res,| match res {
           Ok(item) => Ok(Self { item, ..self }),
           Err(e) => Err((self, e,))
@@ -183,7 +183,7 @@ impl<T, Coll,> Cursor<T, Coll,>
     //Get the next id.
     match self.item.get_next_id().cloned() {
       //Get the cursor.
-      Some(next_id) => self.collection.get_cursor(next_id,).await.map(Some),
+      Some(next_id) => self.collection.get_cursor(&next_id,).await.map(Some),
       None => Ok(None),
     }
   }
@@ -195,7 +195,7 @@ impl<T, Coll,> Cursor<T, Coll,>
     //Get the previous id.
     match self.item.get_previous_id().cloned() {
       //Get the cursor.
-      Some(previous_id) => self.collection.get_cursor(previous_id,).await.map(Some),
+      Some(previous_id) => self.collection.get_cursor(&previous_id,).await.map(Some),
       None => Ok(None),
     }
   }
