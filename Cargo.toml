@@ -1,0 +1,6 @@
+
+[workspace]
+members = ["galileo-tier", "galileo-tier-database"]
+
+[patch.crates-io]
+galileo-tier-database = { git = "https://github.com/Dynisious/galileo-tier" }
