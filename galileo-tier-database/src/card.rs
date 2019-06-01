@@ -6,7 +6,7 @@
 use crate::{DocumentId, Document, LinkedList,};
 
 /// Defines an individual `Card`.
-#[derive(PartialEq, Eq,)]
+#[derive(PartialEq, Eq, Clone, Debug,)]
 pub struct Card {
   /// The identifier of this `Card`.
   pub id: DocumentId,

@@ -7,7 +7,7 @@ use crate::{DocumentId, Document, LinkedList,};
 use std::num::NonZeroU64;
 
 /// Metadata for a collection of `Card`s making up a tier.
-#[derive(PartialEq, Eq,)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug,)]
 pub struct TierMeta {
   /// The Id of this `TierMeta`.
   pub id: DocumentId,
