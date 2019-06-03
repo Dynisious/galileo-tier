@@ -1,6 +1,6 @@
 [package]
 name = "galileo-tier-database"
-version = "0.2.2"
+version = "0.3.0"
 authors = ["Dynisious <daniel.bechaz@gmail.com>"]
 edition = "2018"
 

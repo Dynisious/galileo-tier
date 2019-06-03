@@ -7,7 +7,10 @@
 //! Last Moddified --- 2019-06-02
 
 #![deny(missing_docs,)]
-#![feature(async_await, await_macro, associated_type_defaults, const_fn,)]
+#![feature(async_await, await_macro, associated_type_defaults,
+  const_fn, never_type, gen_future, try_trait, generator_trait,
+  generators,
+)]
 
 mod card;
 mod tier_meta;
