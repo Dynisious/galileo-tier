@@ -14,11 +14,11 @@ pub trait TierListCollection: Sized {
   /// The error type returned by DB operations.
   type Error;
   /// The future type when batch fetching documents from the collection.
-  type GetBatchDocuments: Future<Output = Vec<Result<Self::Document, Self::Error>>>;
+  type GetBatchDocuments: Future<Output = Result<Vec<Result<Self::Document, Self::Error>>, Self::Error>>;
   /// The future type when fetching a document from the collection.
   type GetDocument: Future<Output = Result<Self::Document, Self::Error>>;
   /// The future type when batch writing documents to the collection.
-  type WriteBatchDocuments: Future<Output = Vec<Result<(), Self::Error>>>;
+  type WriteBatchDocuments: Future<Output = Result<Vec<Result<(), Self::Error>>, Self::Error>>;
   /// The future type when writing a document to the collection.
   type WriteDocument: Future<Output = Result<(), Self::Error>>;
 
@@ -349,14 +349,21 @@ mod tests {
     type Document = Doc;
     type Error = !;
     type GetDocument = Pin<Box<dyn Future<Output = Result<Self::Document, Self::Error>>>>;
-    type GetBatchDocuments = Pin<Box<dyn Future<Output = Vec<Result<Self::Document, Self::Error>>>>>;
+    type GetBatchDocuments = Pin<Box<dyn Future<Output = Result<Vec<Result<Self::Document, Self::Error>>, Self::Error>>>>;
     type WriteDocument = Pin<Box<dyn Future<Output = Result<(), Self::Error>>>>;
-    type WriteBatchDocuments = Pin<Box<dyn Future<Output = Vec<Result<(), Self::Error>>>>>;
+    type WriteBatchDocuments = Pin<Box<dyn Future<Output = Result<Vec<Result<(), Self::Error>>, Self::Error>>>>;
 
     fn get_documents(&self, ids: &[&DocumentId],) -> Self::GetBatchDocuments {
-      Box::pin(future::join_all(
-        ids.iter().map(|id,| self.get_document(id,),),
-      ),)
+      let coll = self.clone();
+      let ids = ids.into_iter()
+        .map(|&&id,| id,)
+        .collect::<Vec<_>>();
+
+      Box::pin(async move {
+        Ok(future::join_all(
+          ids.into_iter().map(|id,| coll.get_document(&id,),),
+        ).await)
+      },)
     }
     fn get_document(&self, id: &DocumentId,) -> Self::GetDocument {
       use std::task::Poll;
@@ -373,9 +380,16 @@ mod tests {
     }
     fn write_documents<T,>(&self, documents: &[&T],) -> Self::WriteBatchDocuments
       where T: Borrow<Self::Document>, {
-      Box::pin(future::join_all(
-        documents.iter().map(|&doc,| self.write_document(doc,),)
-      ),)
+      let coll = self.clone();
+      let docs = documents.into_iter()
+        .map(|&doc,| *doc.borrow(),)
+        .collect::<Vec<_>>();
+
+      Box::pin(async move {
+        Ok(future::join_all(
+          docs.into_iter().map(|doc,| coll.write_document(&doc,),),
+        ).await)
+      },)
     }
     fn write_document<T,>(&self, document: &T,) -> Self::WriteDocument
       where T: Borrow<Self::Document>, {
@@ -433,7 +447,7 @@ mod tests {
       
       let docs = coll.write_documents(&[&doc2, &doc3, &doc4,],).await;
     
-      for (i, res) in docs.into_iter().enumerate() {
+      for (i, res) in docs.unwrap().into_iter().enumerate() {
         res.expect(&format!("Error writing id{}", i,),)
       }
 
