@@ -1,7 +1,7 @@
 //! Defines a operations on a document collection which stores one or more tier lists.
 //! 
 //! Author --- daniel.bechaz@gmail.com  
-//! Last Moddified --- 2019-06-02
+//! Last Moddified --- 2019-06-05
 
 use crate::{DocumentId, Document, LinkedList,};
 use futures::{Future, TryFuture, FutureExt, TryFutureExt, future::MapOk,};
@@ -18,7 +18,7 @@ pub trait TierListCollection: Sized {
   /// The future type when fetching a document from the collection.
   type GetDocument: Future<Output = Result<Self::Document, Self::Error>>;
   /// The future type when batch writing documents to the collection.
-  type WriteBatchDocuments: Future<Output = Result<Vec<Result<(), Self::Error>>, Self::Error>>;
+  type WriteBatchDocuments: Future<Output = Result<(), Vec<Result<(), Self::Error>>>>;
   /// The future type when writing a document to the collection.
   type WriteDocument: Future<Output = Result<(), Self::Error>>;
 
@@ -351,7 +351,7 @@ mod tests {
     type GetDocument = Pin<Box<dyn Future<Output = Result<Self::Document, Self::Error>>>>;
     type GetBatchDocuments = Pin<Box<dyn Future<Output = Result<Vec<Result<Self::Document, Self::Error>>, Self::Error>>>>;
     type WriteDocument = Pin<Box<dyn Future<Output = Result<(), Self::Error>>>>;
-    type WriteBatchDocuments = Pin<Box<dyn Future<Output = Result<Vec<Result<(), Self::Error>>, Self::Error>>>>;
+    type WriteBatchDocuments = Pin<Box<dyn Future<Output = Result<(), Vec<Result<(), Self::Error>>>>>>;
 
     fn get_documents(&self, ids: &[&DocumentId],) -> Self::GetBatchDocuments {
       let coll = self.clone();
@@ -386,9 +386,20 @@ mod tests {
         .collect::<Vec<_>>();
 
       Box::pin(async move {
-        Ok(future::join_all(
-          docs.into_iter().map(|doc,| coll.write_document(&doc,),),
-        ).await)
+        let mut all_succeeded = true;
+        let mut results = Vec::with_capacity(docs.len(),);
+        let docs = docs.into_iter()
+          .map(|doc,| coll.write_document(&doc,),);
+
+        for res in docs {
+          let res = res.await;
+
+          all_succeeded = all_succeeded && res.is_ok();
+          results.push(res,);
+        }
+
+        if all_succeeded { Ok(()) }
+        else { Err(results) }
       },)
     }
     fn write_document<T,>(&self, document: &T,) -> Self::WriteDocument
@@ -447,8 +458,10 @@ mod tests {
       
       let docs = coll.write_documents(&[&doc2, &doc3, &doc4,],).await;
     
-      for (i, res) in docs.unwrap().into_iter().enumerate() {
-        res.expect(&format!("Error writing id{}", i,),)
+      if let Err(res) = docs {
+        for (i, res) in res.into_iter().enumerate().filter(|(_, res,),| res.is_err(),) {
+          res.expect(&format!("Error writing id{}", i,),)
+        }
       }
 
       let cursor = coll.ref_cursor::<Doc>(&id3,).await.unwrap();
