@@ -18,7 +18,7 @@ pub trait TierListCollection: Sized {
   /// The future type when fetching a document from the collection.
   type GetDocument: Future<Output = Result<Self::Document, Self::Error>>;
   /// The future type when batch writing documents to the collection.
-  type WriteBatchDocuments: Future<Output = Result<(), Vec<Result<(), Self::Error>>>>;
+  type WriteBatchDocuments: Future<Output = Result<Result<(), Vec<Result<(), Self::Error>>>, Self::Error>>;
   /// The future type when writing a document to the collection.
   type WriteDocument: Future<Output = Result<(), Self::Error>>;
 
@@ -351,7 +351,7 @@ mod tests {
     type GetDocument = Pin<Box<dyn Future<Output = Result<Self::Document, Self::Error>>>>;
     type GetBatchDocuments = Pin<Box<dyn Future<Output = Result<Vec<Result<Self::Document, Self::Error>>, Self::Error>>>>;
     type WriteDocument = Pin<Box<dyn Future<Output = Result<(), Self::Error>>>>;
-    type WriteBatchDocuments = Pin<Box<dyn Future<Output = Result<(), Vec<Result<(), Self::Error>>>>>>;
+    type WriteBatchDocuments = Pin<Box<dyn Future<Output = Result<Result<(), Vec<Result<(), Self::Error>>>, Self::Error>>>>;
 
     fn get_documents(&self, ids: &[&DocumentId],) -> Self::GetBatchDocuments {
       let coll = self.clone();
@@ -398,8 +398,8 @@ mod tests {
           results.push(res,);
         }
 
-        if all_succeeded { Ok(()) }
-        else { Err(results) }
+        if all_succeeded { Ok(Ok(())) }
+        else { Ok(Err(results)) }
       },)
     }
     fn write_document<T,>(&self, document: &T,) -> Self::WriteDocument
@@ -456,7 +456,8 @@ mod tests {
       coll.write_document(&doc1,).await
         .expect("Error writing document");
       
-      let docs = coll.write_documents(&[&doc2, &doc3, &doc4,],).await;
+      let docs = coll.write_documents(&[&doc2, &doc3, &doc4,],).await
+        .expect("Error writing documents");
     
       if let Err(res) = docs {
         for (i, res) in res.into_iter().enumerate().filter(|(_, res,),| res.is_err(),) {
